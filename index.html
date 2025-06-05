@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hamming SEC-DED Kod Simülatörü</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="simulator-container">
+        <h1 class="title">Hamming SEC-DED Kod Simülatörü</h1>
+
+        
+        <div class="input-section">
+            <label class="label">Veri Girişi (8, 16 veya 32 bit):</label>
+            <input type="text" id="dataInput" class="data-input" placeholder="Örn: 10101010" maxlength="32">
+            <button class="btn btn-generate" onclick="createHammingCode()">Hamming SEC-DED Kodu Oluştur</button>
+        </div>
+
+        <div id="codeOutput" class="output-box" style="display: none;">
+            <strong>Oluşturulan Hamming Kodu:</strong><br>
+            <div id="codeDisplay" class="bit-display"></div>
+        </div>
+
+        <div class="error-controls">
+            <button class="btn btn-error" onclick="injectSingleError()">Rastgele Tek Hata</button>
+            <button class="btn btn-error" onclick="injectDoubleError()">Rastgele Çift Hata</button>
+        </div>
+
+        <div class="manual-error-section">
+            <label class="label">Manuel Hata Ekleme:</label>
+            <div class="error-input-group">
+                <span>Bit pozisyonu (1-based):</span>
+                <input type="number" id="errorPos" class="error-pos-input" min="1" placeholder="1">
+                <button class="btn" onclick="addManualError()">Hata Ekle</button>
+            </div>
+        </div>
+
+        <div id="errorOutput" class="output-box" style="display: none;">
+            <strong>Hatalı Kod:</strong><br>
+            <div id="errorDisplay" class="bit-display"></div>
+        </div>
+
+        <button class="btn btn-correct" onclick="detectAndCorrect()" style="width: 100%; margin-top: 15px;">
+            Hata Tespiti ve Düzeltme
+        </button>
+
+        <div id="resultOutput" class="output-box" style="display: none;">
+            <div id="resultDisplay"></div>
+        </div>
+    </div>
+
+    <script>
+        // Global degiskenler - programin genel durumunu tutar
+        let mevcutKod = [];           // Suanda islem goren hamming kodu
+        let orijinalVeri = '';        // Kullanicinin girdigi ham veri
+        let parityBitSayisi = 0;      // Hesaplanan parity bit sayisi
+
+        // Ana fonksiyon - kullanici verisinden hamming kodu olusturur
+        function createHammingCode() {
+            // Kullanicinin girdigi veriyi al ve temizle
+            const girdi = document.getElementById('dataInput').value.trim();
+            
+            // Girdi kontrolu - sadece 0 ve 1 kabul et
+            if (!girdi.match(/^[01]+$/)) {
+                alert('Sadece 0 ve 1 karakterleri kullanin!');
+                return;
+            }
+            
+            // Uzunluk kontrolu - 8, 16 veya 32 bit olmali
+            if (![8, 16, 32].includes(girdi.length)) {
+                alert('Veri uzunlugu 8, 16 veya 32 bit olmalidir!');
+                return;
+            }
+
+            // Orijinal veriyi sakla
+            orijinalVeri = girdi;
+            
+            // Veriyi ters cevir (MSB → LSB siralamasi icin)
+            const tersCevrilmisVeri = girdi.split('').reverse().join('');
+            
+            // SEC-DED hamming kodunu olustur
+            mevcutKod = generateSECDEDCode(tersCevrilmisVeri);
+            
+            // Sonuclari ekranda goster
+            displayCode();
+            hideErrorDisplay();
+            hideResultDisplay();
+        }
+
+        // SEC-DED kodu olusturur
+        function generateSECDEDCode(veriBitleri) {
+            const m = veriBitleri.length;  // Veri bit sayisi
+            
+            // Gerekli parity bit sayisini hesapla
+            // Hamming kurali: 2^r >= m + r + 1
+            let r = 1;
+            while (Math.pow(2, r) < m + r + 1) {
+                r++;
+            }
+            parityBitSayisi = r;
+            
+            // Toplam bit sayisi: veri + parity + SEC biti
+            const toplamBit = m + r + 1;
+            const kodKelimesi = new Array(toplamBit);
+            
+            // Veri bitlerini dogru pozisyonlara yerlestir
+            // Parity pozisyonlari (1, 2, 4, 8, ...) atlanir
+            let veriIndeksi = 0;
+            for (let i = 1; i <= toplamBit - 1; i++) {
+                // Eger pozisyon 2'nin kuvveti degilse veri biti koyma
+                if (!isPowerOfTwo(i)) {
+                    kodKelimesi[i-1] = parseInt(veriBitleri[veriIndeksi]);
+                    veriIndeksi++;
+                }
+            }
+            
+            // Parity bitlerini hesapla
+            // Her parity biti belirli pozisyonlardaki bitleri kontrolü
+            for (let i = 0; i < r; i++) {
+                const parityPozisyonu = Math.pow(2, i);  // 1, 2, 4, 8, ...
+                let parite = 0;
+                
+                // Bu parity bitinin kontrol ettigi tum pozisyonlari tarama
+                for (let j = 1; j <= toplamBit - 1; j++) {
+                    // Binary AND ile pozisyon kontrolu
+                    if ((j & parityPozisyonu) !== 0) {
+                        parite ^= (kodKelimesi[j-1] || 0);  // XOR isle
+                    }
+                }
+                
+                // Hesaplanan parity bitini yerlestirme
+                kodKelimesi[parityPozisyonu-1] = parite;
+            }
+            
+            // SEC  bitini hesaplama
+            // Tum bitlerin XOR'u alinir
+            let genelParite = 0;
+            for (let i = 0; i < toplamBit - 1; i++) {
+                genelParite ^= kodKelimesi[i];
+            }
+            kodKelimesi[toplamBit-1] = genelParite;
+            
+            return kodKelimesi;
+        }
+
+        // Bir sayinin 2'nin kuvveti olup olmadigini kontrolü
+        function isPowerOfTwo(n) {
+            return n > 0 && (n & (n - 1)) === 0;
+        }
+
+        // Rastgele tek bit hatasi ekleme
+        function injectSingleError() {
+            if (mevcutKod.length === 0) {
+                alert('İlk Hamming kodu olusturun!');
+                return;
+            }
+            
+            // Rastgele bir pozisyon secme
+            const hataPozisyonu = Math.floor(Math.random() * mevcutKod.length); 
+            
+            // Secilen pozisyondaki biti ters cevir XORlayarak
+            mevcutKod[hataPozisyonu] = mevcutKod[hataPozisyonu] ^ 1;
+            
+            // Hata mesajini gosterir
+            showErrorDisplay(`Rastgele tek hata eklendi (Bit ${hataPozisyonu + 1})`);
+        }
+
+        // Rastgele cift bit hatasi ekleme
+        function injectDoubleError() {
+            if (mevcutKod.length === 0) {
+                alert('İlk Hamming kodu olusturun!');
+                return;
+            }
+            
+            // Birinci rastgele pozisyon
+            const pozisyon1 = Math.floor(Math.random() * mevcutKod.length);
+            let  pozisyon2 = Math.floor(Math.random() * mevcutKod.length);
+
+            // İki pozisyonda farkli olmali
+            while(pozisyon1 === pozisyon2){
+                let  pozisyon2 = Math.floor(Math.random() * mevcutKod.length);
+            }
+          
+            // Her iki pozisyondaki bitleri ters cevirme
+            mevcutKod[pozisyon1] = mevcutKod[pozisyon1] ^ 1;
+            mevcutKod[pozisyon2] = mevcutKod[pozisyon2] ^ 1;
+            
+            // Hata mesajini gosterir
+            showErrorDisplay(`Rastgele cift hata eklendi (Bit ${pozisyon1 + 1} ve ${pozisyon2 + 1})`);
+        }
+
+        // Kullanicinin belirttigi pozisyona manuel hata ekleme
+        function addManualError() {
+            // Oncelikle kod olusturulmus mu kontrol
+            if (mevcutKod.length === 0) {
+                alert('Ilk Hamming kodu olusturun!');
+                return;
+            }
+            
+            // Kullanicinin girdigi pozisyonu
+            const pozisyon = parseInt(document.getElementById('errorPos').value);
+            
+            // Pozisyon gecerliligi kontrolu
+            if (isNaN(pozisyon) || pozisyon < 1 || pozisyon > mevcutKod.length) {
+                alert(`Gecerli bit pozisyonu girin (1-${mevcutKod.length})`);
+                return;
+            }
+            
+            // Belirtilen pozisyondaki biti ters cevir
+            mevcutKod[pozisyon-1] = mevcutKod[pozisyon-1] ^ 1;
+            
+            // Hata mesajini gosterir
+            showErrorDisplay(`Manuel hata eklendi (Bit ${pozisyon})`);
+        }
+
+        // Hata tespit ve duzeltme islemini baslatir
+        function detectAndCorrect() {
+            // Oncelikle kod olusturulmus mu kontrol
+            if (mevcutKod.length === 0) {
+                alert('Ilk Hamming kodu olusturun!');
+                return;
+            }
+            
+            // Mevcut kodun kopyasini al ve decode
+            const sonuc = performSECDEDDecoding([...mevcutKod]);
+            
+            // Sonucu ekranda gosterir
+            showResultDisplay(sonuc);
+        }
+
+        // SEC-DED decode islemi - hata tespit ve duzeltme
+        function performSECDEDDecoding(alinanKod) {
+            const n = alinanKod.length - 1; // SEC bitini cikarma
+            let sendrom = 0;                // Hata pozisyonunu gosteren deger
+            
+            // Sendrom hesapla - her parity biti icin
+            for (let i = 0; i < parityBitSayisi; i++) {
+                const parityPozisyonu = Math.pow(2, i);  // 1, 2, 4, 8, ...
+                let parite = 0;
+                
+                // Bu parity bitinin kontrol ettigi pozisyonlari kontrol
+                for (let j = 1; j <= n; j++) {
+                    if ((j & parityPozisyonu) !== 0) {
+                        parite ^= alinanKod[j-1];
+                    }
+                }
+                
+                // Eger parite hatali ise sendroma ekleme
+                if (parite !== 0) {
+                    sendrom += parityPozisyonu;
+                }
+            }
+            
+            // SEC biti kontrolu
+            let genelParite = 0;
+            for (let i = 0; i < alinanKod.length; i++) {
+                genelParite ^= alinanKod[i];
+            }
+            
+            // Hata durumunu belirle ve mesaj olustur
+            let durum, mesaj;
+            
+            if (sendrom === 0 && genelParite === 0) {
+                // Hic hata yok
+                durum = 'ok';
+                mesaj = 'Hata yok - Veri dogru';
+            } else if (sendrom !== 0 && genelParite === 1) {
+                // Tek hata var - duzeltilebilir
+                alinanKod[sendrom-1] = alinanKod[sendrom-1] ^ 1;
+                durum = 'warning';
+                mesaj = `Tek hata tespit edildi ve duzeltildi (Bit ${sendrom})<br>Duzeltilmis kod: ${displayCodeReversed(alinanKod)}`;
+                mevcutKod = [...alinanKod];  // Duzeltilmis kodu guncelle
+            } else if (sendrom === 0 && genelParite === 1) {
+                // SEC bitinde hata
+                alinanKod[alinanKod.length-1] = alinanKod[alinanKod.length-1] ^ 1;
+                durum = 'warning';
+                mesaj = 'SEC bitinde hata tespit edildi ve duzeltildi<br>Duzeltilmis kod: ' + displayCodeReversed(alinanKod);
+                mevcutKod = [...alinanKod];  // Duzeltilmis kodu guncelle
+            } else {
+                // Cift hata - duzeltilemez
+                durum = 'error';
+                mesaj = 'Cift hata tespit edildi - Duzeltilemez!';
+            }
+            
+            return { durum, mesaj };
+        }
+
+        // Kodu kullanici icin dogru sirada ters çevirerek gosterme
+        function displayCodeReversed(kod) {
+            // Internal kod LSB->MSB sirali, kullaniciya MSB->LSB gosterir
+            return [...kod].reverse().join('');
+        }
+
+        // Olusturulan hamming kodunu ekranda gosterir
+        function displayCode() {
+            // Kod cikti alanini goster
+            document.getElementById('codeOutput').style.display = 'block';
+            
+            // Kodu ters cevirerek dogru sirada gosterir
+            document.getElementById('codeDisplay').innerHTML = displayCodeReversed(mevcutKod);
+            
+            // Manuel hata input'unun maksimum degerini guncelleme
+            document.getElementById('errorPos').max = mevcutKod.length;
+        }
+
+        // Hata ekleme sonrasinda durumu gosterir
+        function showErrorDisplay(mesaj) {
+            // Hata cikti alanini gosterir
+            document.getElementById('errorOutput').style.display = 'block';
+            const errorDisplay = document.getElementById('errorDisplay');
+            
+            // Hata mesajini ve hatali kodu gosterir
+            errorDisplay.innerHTML = `<div style="margin-bottom: 5px; color: #e74c3c;">${mesaj}</div>${displayCodeReversed(mevcutKod)}`;
+        }
+
+        // Hata tespit/duzeltme sonucunu gosterir
+        function showResultDisplay(sonuc) {
+            const resultOutput = document.getElementById('resultOutput');
+            const resultDisplay = document.getElementById('resultDisplay');
+            
+            // Sonuc alanini goster ve icerigini doldur
+            resultOutput.style.display = 'block';
+            resultDisplay.innerHTML = `
+                <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                    <span class="status-indicator status-${sonuc.durum}"></span>
+                    <strong>Tespit ve Duzeltme Sonucu:</strong>
+                </div>
+                ${sonuc.mesaj}
+            `;
+        }
+
+        // Hata gosterim alanini gizler
+        function hideErrorDisplay() {
+            document.getElementById('errorOutput').style.display = 'none';
+        }
+
+        // Sonuc gosterim alanini gizler
+        function hideResultDisplay() {
+            document.getElementById('resultOutput').style.display = 'none';
+        }
+
+        // Enter tusu ile hamming kodu olusturma
+        document.getElementById('dataInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                createHammingCode();
+            }
+        });
+    </script>
+</body>
+</html>
