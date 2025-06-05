@@ -3,7 +3,7 @@
 Bu proje, Hamming Single Error Correction - Double Error Detection (SEC-DED) kodlama algoritmasını interaktif olarak öğrenmek ve test etmek için geliştirilmiş bir web tabanlı simülatördür.
 
 ### 🎥 Detaylı anlatım videosunu izlemek isterseniz -> [YouTube videosu](https://www.youtube.com/watch?v=XcU6nmkFBxM&t=1s)
-
+### 🔗 Canlı test etmek için tıklayın → [Hamming SEC-DED Kod Simülatörü](https://korayga.github.io/hamming-code/)
 ## 🎯 Özellikler
 
 - **Hamming SEC-DED Kod Oluşturma**: 8, 16 veya 32 bitlik veri için otomatik kod üretimi
@@ -37,7 +37,7 @@ php -S localhost:8000
 http://localhost:8000
 ```
 
-Veya doğrudan `index.html` dosyasını tarayıcıda açabilirsiniz.
+Veya doğrudan  [Hamming SEC-DED Kod Simülatörü](https://korayga.github.io/hamming-code/) bu linkten tarayıcada açabilirsiniz.
 
 ## 📁 Proje Yapısı
 
